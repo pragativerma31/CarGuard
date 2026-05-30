@@ -2,7 +2,7 @@
   <h1 align="center">🚗 CarGuard</h1>
   <p align="center"><strong>Smart IoT Vehicle Safety &amp; Monitoring System</strong></p>
   <p align="center">
-    Driver identity verification · Real-time drowsiness detection · Parked-vehicle intrusion alerts
+    Driver identity verification · Real-time drowsiness detection · Parked-vehicle anomaly alerts
   </p>
 </p>
 
