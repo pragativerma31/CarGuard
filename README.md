@@ -14,6 +14,11 @@
   <img src="https://img.shields.io/badge/ML-OpenCV%20%7C%20face__recognition-5C3EE8?logo=opencv" alt="ML"/>
   <img src="https://img.shields.io/badge/containerized-Docker-2496ED?logo=docker&logoColor=white" alt="Docker"/>
 </p>
+<p align="center">
+  <a href="https://drive.google.com/file/d/1LlBr8F1yyB6Omee3ctcHSWEdnFrVTTD5/view?usp=sharing">
+    <img src="https://img.shields.io/badge/▶%20Watch%20Demo-FF0000?style=for-the-badge&logo=google-drive&logoColor=white" alt="Watch Demo"/>
+  </a>
+</p>
 
 ---
 
