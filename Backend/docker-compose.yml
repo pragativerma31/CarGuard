@@ -1,0 +1,11 @@
+services:
+  face-api:
+    image: car-intrusion-backend
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./known_faces:/app/known_faces
+      - ./firebase_key.json:/app/firebase_key.json
+      - ./.env:/app/.env
+    restart: unless-stopped

@@ -1,0 +1,52 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Python backend
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Node / Next.js frontend
+node_modules/
+.next/
+out/
+coverage/
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Environment files and secrets
+.env
+.env.*
+Backend/firebase_key.json
+
+# Generated project data
+Backend/known_faces/
+Backend/known_faces/*
+*.log
+*.jpg
+*.jpeg
+*.png
+
+# Arduino / embedded build outputs
+*.elf
+*.hex
+*.bin
+*.map
+.pio/

@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ESP32 Car Intrusion Monitor</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0e14;
+    --panel: #0f1520;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --green: #00ff88;
+    --red: #ff3b5c;
+    --amber: #ffaa00;
+    --orange: #ff6b35;
+    --purple: #c084fc;
+    --text: #c8d8e8;
+    --dim: #4a6080;
+    --mono: 'Share Tech Mono', monospace;
+    --ui: 'Rajdhani', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ui);
+    min-height: 100vh;
+    padding: 24px 16px;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(0,212,255,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 90%, rgba(0,255,136,0.03) 0%, transparent 50%);
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .logo-icon {
+    width: 40px; height: 40px;
+    border: 1.5px solid var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .logo-icon svg { width: 22px; height: 22px; }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 15px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    line-height: 1.3;
+  }
+
+  header p {
+    font-size: 12px;
+    color: var(--dim);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.3;
+  }
+
+  .card.active-green::before { background: var(--green); opacity: 0.8; }
+  .card.active-red::before { background: var(--red); opacity: 0.8; }
+  .card.active-amber::before { background: var(--amber); opacity: 0.8; }
+
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--dim);
+    flex-shrink: 0;
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+
+  .dot.green { background: var(--green); box-shadow: 0 0 10px var(--green); }
+  .dot.red { background: var(--red); box-shadow: 0 0 10px var(--red); }
+  .dot.amber { background: var(--amber); box-shadow: 0 0 8px var(--amber); animation: pulse-amber 1s infinite; }
+
+  @keyframes pulse-amber {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .status-val {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .status-val.green { color: var(--green); }
+  .status-val.red { color: var(--red); }
+  .status-val.amber { color: var(--amber); }
+  .status-val.dim { color: var(--dim); }
+
+  .path-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 8px;
+    word-break: break-all;
+  }
+
+  .countdown-bar {
+    margin-top: 12px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .countdown-bar.visible { display: block; }
+
+  .countdown-fill {
+    height: 100%;
+    background: var(--amber);
+    border-radius: 2px;
+    width: 100%;
+    transition: width 1s linear;
+  }
+
+  .countdown-text {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--amber);
+    margin-top: 5px;
+    display: none;
+  }
+
+  .countdown-text.visible { display: block; }
+
+  /* ── Scenario Buttons Section ── */
+  .scenarios-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 18px;
+    margin-bottom: 14px;
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .scenarios-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  @media (max-width: 680px) {
+    .scenarios-grid { grid-template-columns: 1fr; }
+  }
+
+  .scenario-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.25s, box-shadow 0.25s;
+    background: rgba(255,255,255,0.01);
+  }
+
+  .scenario-card.force-open  { --sc: #ff6b35; }
+  .scenario-card.leaning     { --sc: #ffaa00; }
+  .scenario-card.glass-break { --sc: #c084fc; }
+
+  .scenario-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--sc);
+    opacity: 0.5;
+    transition: opacity 0.25s;
+  }
+
+  .scenario-card:hover { border-color: var(--sc); box-shadow: 0 0 18px rgba(var(--sc-rgb, 255,255,255), 0.08); }
+  .scenario-card:hover::before { opacity: 1; }
+
+  .scenario-icon {
+    font-size: 22px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .scenario-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--sc);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+
+  .scenario-desc {
+    font-size: 11px;
+    color: var(--dim);
+    font-family: var(--mono);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+
+  .wave-preview {
+    display: flex;
+    gap: 4px;
+    align-items: flex-end;
+    height: 28px;
+    margin-bottom: 14px;
+  }
+
+  .wave-bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    opacity: 0.6;
+    transition: opacity 0.3s;
+  }
+
+  .scenario-card:hover .wave-bar { opacity: 1; }
+
+  .seq-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+  }
+
+  .seq-values {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+  }
+
+  .seq-row {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .seq-step {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--dim);
+    width: 18px;
+    flex-shrink: 0;
+  }
+
+  .seq-chip {
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    color: var(--text);
+    letter-spacing: 0.03em;
+  }
+
+  .scenario-btn {
+    width: 100%;
+    border: 1px solid var(--sc);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.03);
+    color: var(--sc);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    padding: 9px 0;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scenario-btn:hover:not(:disabled) {
+    background: rgba(255,255,255,0.07);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--sc) 40%, transparent);
+  }
+
+  .scenario-btn:disabled {
+    opacity: 0.28;
+    cursor: not-allowed;
+  }
+
+  .scenario-btn.sending {
+    animation: btn-pulse 0.4s ease infinite alternate;
+  }
+
+  @keyframes btn-pulse {
+    from { opacity: 0.7; }
+    to   { opacity: 1; }
+  }
+
+  /* Progress indicator inside button */
+  .btn-progress {
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 2px;
+    background: var(--sc);
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 0 0 6px 6px;
+  }
+
+  /* Step tracker dots */
+  .step-tracker {
+    display: flex;
+    gap: 5px;
+    margin-top: 10px;
+    justify-content: center;
+  }
+
+  .step-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    border: 1px solid var(--sc);
+    background: transparent;
+    transition: background 0.25s, box-shadow 0.25s;
+  }
+
+  .step-dot.done {
+    background: var(--sc);
+    box-shadow: 0 0 6px var(--sc);
+  }
+
+  .step-dot.active {
+    background: transparent;
+    box-shadow: 0 0 8px var(--sc);
+    animation: step-blink 0.5s ease infinite alternate;
+  }
+
+  @keyframes step-blink {
+    from { opacity: 0.4; }
+    to   { opacity: 1; }
+  }
+
+  /* ── Manual Send Section ── */
+  .send-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 18px;
+    margin-bottom: 14px;
+  }
+
+  .send-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  .send-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .allowed-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid;
+    letter-spacing: 0.05em;
+  }
+
+  .allowed-badge.yes   { color: var(--green);  border-color: var(--green);  background: rgba(0,255,136,0.07); }
+  .allowed-badge.no    { color: var(--red);    border-color: var(--red);    background: rgba(255,59,92,0.07); }
+  .allowed-badge.wait  { color: var(--amber);  border-color: var(--amber);  background: rgba(255,170,0,0.07); }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 12px;
+  }
+
+  @media (max-width: 600px) { .field-row { grid-template-columns: 1fr; } }
+
+  .field label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .field input {
+    width: 100%;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 14px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .field input:focus  { border-color: var(--accent); }
+  .field input:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .send-btn {
+    background: rgba(0,212,255,0.1);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 9px 20px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    transition: background 0.2s, box-shadow 0.2s;
+    height: 40px;
+  }
+
+  .send-btn:hover:not(:disabled) {
+    background: rgba(0,212,255,0.2);
+    box-shadow: 0 0 14px rgba(0,212,255,0.25);
+  }
+
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Log ── */
+  .log-section {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+
+  .log-header {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .log-clear {
+    background: none; border: none;
+    color: var(--dim); cursor: pointer;
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.06em; padding: 2px 6px;
+    border-radius: 4px; transition: color 0.2s;
+  }
+
+  .log-clear:hover { color: var(--accent); }
+
+  .log-scroll {
+    max-height: 200px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .log-entry {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.8;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    display: flex;
+    gap: 10px;
+  }
+
+  .log-time { color: var(--dim); flex-shrink: 0; }
+  .log-msg.ok      { color: var(--green); }
+  .log-msg.warn    { color: var(--amber); }
+  .log-msg.err     { color: var(--red); }
+  .log-msg.info    { color: var(--accent); }
+  .log-msg.orange  { color: var(--orange); }
+  .log-msg.purple  { color: var(--purple); }
+  .log-msg.default { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="1.8">
+      <rect x="2" y="7" width="20" height="10" rx="2"/>
+      <circle cx="7" cy="17" r="2" fill="#00d4ff" stroke="none"/>
+      <circle cx="17" cy="17" r="2" fill="#00d4ff" stroke="none"/>
+      <path d="M5 7V5h14v2"/>
+      <path d="M9 11h6"/>
+    </svg>
+  </div>
+  <div>
+    <h1>ESP32 CAR INTRUSION MONITOR</h1>
+    <p>esp32dev / esp32-car-01 &mdash; Firebase Realtime DB</p>
+  </div>
+</header>
+
+<!-- Status Grid -->
+<div class="grid">
+  <!-- Car Status -->
+  <div class="card" id="car-card">
+    <div class="card-label">Car Status</div>
+    <div class="status-row">
+      <div class="dot" id="car-dot"></div>
+      <div class="status-val dim" id="car-val">—</div>
+    </div>
+    <div class="path-tag">/commands/esp32dev/esp32-car-01/car_status</div>
+    <div class="countdown-bar" id="countdown-bar">
+      <div class="countdown-fill" id="countdown-fill"></div>
+    </div>
+    <div class="countdown-text" id="countdown-text"></div>
+  </div>
+
+  <!-- Send Permission -->
+  <div class="card" id="perm-card">
+    <div class="card-label">Send Permission</div>
+    <div class="status-row">
+      <div class="dot" id="perm-dot"></div>
+      <div class="status-val dim" id="perm-val">WAITING</div>
+    </div>
+    <div class="path-tag">data/sensors → { sound, vibration, pressure }</div>
+  </div>
+</div>
+
+<!-- Scenario Simulation Buttons -->
+<div class="scenarios-section">
+  <div class="section-title">Intrusion Scenario Simulator</div>
+  <div class="scenarios-grid">
+
+    <!-- Force Opening -->
+    <div class="scenario-card force-open" id="sc-force">
+      <span class="scenario-icon">🚪</span>
+      <div class="scenario-name">Force Opening</div>
+      <div class="scenario-desc">Sends 3 readings in sequence under 5s simulating a door being forced open.</div>
+
+      <div class="seq-label">SEQUENCE PREVIEW</div>
+      <div class="seq-values">
+        <div class="seq-row">
+          <span class="seq-step">S1</span>
+          <span class="seq-chip">🔊 600</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 300</span>
+        </div>
+        <div class="seq-row">
+          <span class="seq-step">S2</span>
+          <span class="seq-chip">🔊 650</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 320</span>
+        </div>
+        <div class="seq-row">
+          <span class="seq-step">S3</span>
+          <span class="seq-chip">🔊 630</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 330</span>
+        </div>
+      </div>
+
+      <button class="scenario-btn" id="btn-force" onclick="runScenario('force')" disabled>
+        ▶ SIMULATE
+        <div class="btn-progress" id="prog-force"></div>
+      </button>
+      <div class="step-tracker" id="steps-force">
+        <div class="step-dot" id="sd-force-0"></div>
+        <div class="step-dot" id="sd-force-1"></div>
+        <div class="step-dot" id="sd-force-2"></div>
+      </div>
+    </div>
+
+    <!-- Leaning on Car -->
+    <div class="scenario-card leaning" id="sc-lean">
+      <span class="scenario-icon">🧍</span>
+      <div class="scenario-name">Leaning on Car</div>
+      <div class="scenario-desc">Sends 3 readings in sequence under 5s simulating someone leaning against the vehicle.</div>
+
+      <div class="seq-label">SEQUENCE PREVIEW</div>
+      <div class="seq-values">
+        <div class="seq-row">
+          <span class="seq-step">S1</span>
+          <span class="seq-chip">🔊 200</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 1000</span>
+        </div>
+        <div class="seq-row">
+          <span class="seq-step">S2</span>
+          <span class="seq-chip">🔊 300</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 1300</span>
+        </div>
+        <div class="seq-row">
+          <span class="seq-step">S3</span>
+          <span class="seq-chip">🔊 100</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 900</span>
+        </div>
+      </div>
+
+      <button class="scenario-btn" id="btn-lean" onclick="runScenario('lean')" disabled>
+        ▶ SIMULATE
+        <div class="btn-progress" id="prog-lean"></div>
+      </button>
+      <div class="step-tracker" id="steps-lean">
+        <div class="step-dot" id="sd-lean-0"></div>
+        <div class="step-dot" id="sd-lean-1"></div>
+        <div class="step-dot" id="sd-lean-2"></div>
+      </div>
+    </div>
+
+    <!-- Glass Breaking -->
+    <div class="scenario-card glass-break" id="sc-glass">
+      <span class="scenario-icon">🪟</span>
+      <div class="scenario-name">Glass Breaking</div>
+      <div class="scenario-desc">Sends 3 readings in sequence under 5s simulating window glass being shattered.</div>
+
+      <div class="seq-label">SEQUENCE PREVIEW</div>
+      <div class="seq-values">
+        <div class="seq-row">
+          <span class="seq-step">S1</span>
+          <span class="seq-chip">🔊 1500</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 1000</span>
+        </div>
+        <div class="seq-row">
+          <span class="seq-step">S2</span>
+          <span class="seq-chip">🔊 900</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 800</span>
+        </div>
+        <div class="seq-row">
+          <span class="seq-step">S3</span>
+          <span class="seq-chip">🔊 600</span>
+          <span class="seq-chip">📳 1</span>
+          <span class="seq-chip">⬇ 600</span>
+        </div>
+      </div>
+
+      <button class="scenario-btn" id="btn-glass" onclick="runScenario('glass')" disabled>
+        ▶ SIMULATE
+        <div class="btn-progress" id="prog-glass"></div>
+      </button>
+      <div class="step-tracker" id="steps-glass">
+        <div class="step-dot" id="sd-glass-0"></div>
+        <div class="step-dot" id="sd-glass-1"></div>
+        <div class="step-dot" id="sd-glass-2"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Manual Send -->
+<div class="send-section">
+  <div class="send-header">
+    <div class="send-title">Manual Send → Firebase</div>
+    <div class="allowed-badge no" id="badge">LOCKED</div>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label>SOUND VALUE</label>
+      <input type="number" id="inp-sound" placeholder="e.g. 512" disabled />
+    </div>
+    <div class="field">
+      <label>VIBRATION VALUE</label>
+      <input type="number" id="inp-vibration" placeholder="e.g. 128" disabled />
+    </div>
+    <div class="field">
+      <label>PRESSURE VALUE</label>
+      <input type="number" id="inp-pressure" placeholder="e.g. 50" disabled />
+    </div>
+    <button class="send-btn" id="send-btn" disabled onclick="sendSensorData()">SEND</button>
+  </div>
+</div>
+
+<!-- Log -->
+<div class="log-section">
+  <div class="log-header">
+    <span>Event Log</span>
+    <button class="log-clear" onclick="clearLog()">clear</button>
+  </div>
+  <div class="log-scroll" id="log"></div>
+</div>
+
+<script>
+  const FIREBASE_URL   = "https://car-intrusion-detection-f13de-default-rtdb.asia-southeast1.firebasedatabase.app";
+  const CAR_STATUS_PATH = "commands/esp32dev/esp32-car-01/car_status";
+  const SENSORS_PATH    = "data/sensors";
+  const COOLDOWN_SECS   = 10;
+  const STEP_DELAY_MS   = 1400; // ~1.4s between steps → 3 steps ≈ 2.8s < 5s
+
+  let carStatus = null;
+  let sendAllowed = false;
+  let cooldownTimer = null;
+  let cooldownRemaining = 0;
+  let scenarioRunning = false;
+
+  /* Scenario definitions */
+  const SCENARIOS = {
+    force: {
+      name: "Force Opening",
+      logColor: "orange",
+      steps: [
+        { sound: 600,  vibration: 1, pressure: 300  },
+        { sound: 650,  vibration: 1, pressure: 320  },
+        { sound: 630,  vibration: 1, pressure: 330  }
+      ]
+    },
+    lean: {
+      name: "Leaning on Car",
+      logColor: "warn",
+      steps: [
+        { sound: 200,  vibration: 1, pressure: 1000 },
+        { sound: 300,  vibration: 1, pressure: 1300 },
+        { sound: 100,  vibration: 1, pressure: 900  }
+      ]
+    },
+    glass: {
+      name: "Glass Breaking",
+      logColor: "purple",
+      steps: [
+        { sound: 1500, vibration: 1, pressure: 1000 },
+        { sound: 900,  vibration: 1, pressure: 800  },
+        { sound: 600,  vibration: 1, pressure: 600  }
+      ]
+    }
+  };
+
+  /* ── Firebase REST helpers ── */
+  async function fbGet(path) {
+    const r = await fetch(`${FIREBASE_URL}/${path}.json`);
+    return r.json();
+  }
+
+  async function fbSet(path, value) {
+    await fetch(`${FIREBASE_URL}/${path}.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(value)
+    });
+  }
+
+  /* ── Polling ── */
+  async function pollCarStatus() {
+    try {
+      const val    = await fbGet(CAR_STATUS_PATH);
+      const status = (val || "").toString().toLowerCase().trim();
+      if (status !== carStatus) {
+        const prev = carStatus;
+        carStatus  = status;
+        onCarStatusChange(prev, status);
+      }
+    } catch (e) {
+      log("Firebase read error: " + e.message, "err");
+    }
+  }
+
+  function startPolling() {
+    pollCarStatus();
+    setInterval(pollCarStatus, 2000);
+    log("Polling started (2s interval)", "info");
+  }
+
+  /* ── Car Status Logic ── */
+  function onCarStatusChange(prev, current) {
+    log(`Car status changed: ${prev ?? "?"} → ${current}`, "info");
+    updateCarUI(current);
+
+    if (current === "off") {
+      if (prev === "on") {
+        startCooldown();
+      } else if (prev === null) {
+        setAllowed(true);
+      }
+    } else if (current === "on") {
+      cancelCooldown();
+      setAllowed(false);
+    }
+  }
+
+  function updateCarUI(status) {
+    const dot  = document.getElementById("car-dot");
+    const val  = document.getElementById("car-val");
+    const card = document.getElementById("car-card");
+    dot.className  = "dot";
+    card.className = "card";
+
+    if (status === "on") {
+      dot.classList.add("red");
+      val.textContent = "ON";
+      val.className = "status-val red";
+      card.classList.add("active-red");
+    } else if (status === "off") {
+      dot.classList.add("green");
+      val.textContent = "OFF";
+      val.className = "status-val green";
+      card.classList.add("active-green");
+    } else {
+      val.textContent = status.toUpperCase() || "—";
+      val.className = "status-val dim";
+    }
+  }
+
+  /* ── Cooldown ── */
+  function startCooldown() {
+    setAllowed(false);
+    cancelCooldown();
+    cooldownRemaining = COOLDOWN_SECS;
+    log(`Car turned OFF – waiting ${COOLDOWN_SECS}s cooldown...`, "warn");
+
+    const bar  = document.getElementById("countdown-bar");
+    const fill = document.getElementById("countdown-fill");
+    const txt  = document.getElementById("countdown-text");
+    const card = document.getElementById("car-card");
+
+    bar.classList.add("visible");
+    txt.classList.add("visible");
+    card.className = "card active-amber";
+    fill.style.width = "100%";
+    txt.textContent = `Cooldown: ${cooldownRemaining}s`;
+
+    cooldownTimer = setInterval(() => {
+      cooldownRemaining--;
+      const pct = (cooldownRemaining / COOLDOWN_SECS) * 100;
+      fill.style.width = pct + "%";
+      txt.textContent = `Cooldown: ${cooldownRemaining}s`;
+
+      if (cooldownRemaining <= 0) {
+        cancelCooldown();
+        setAllowed(true);
+        log("Cooldown complete – send unlocked", "ok");
+      }
+    }, 1000);
+  }
+
+  function cancelCooldown() {
+    if (cooldownTimer) { clearInterval(cooldownTimer); cooldownTimer = null; }
+    document.getElementById("countdown-bar").classList.remove("visible");
+    document.getElementById("countdown-text").classList.remove("visible");
+  }
+
+  /* ── Permission UI ── */
+  function setAllowed(yes) {
+    sendAllowed = yes;
+    const dot   = document.getElementById("perm-dot");
+    const val   = document.getElementById("perm-val");
+    const card  = document.getElementById("perm-card");
+    const badge = document.getElementById("badge");
+    const btn   = document.getElementById("send-btn");
+    const s     = document.getElementById("inp-sound");
+    const v     = document.getElementById("inp-vibration");
+    const p     = document.getElementById("inp-pressure");
+
+    dot.className  = "dot";
+    card.className = "card";
+
+    if (yes) {
+      dot.classList.add("green");
+      val.textContent = "ALLOWED";
+      val.className   = "status-val green";
+      card.classList.add("active-green");
+      badge.textContent = "UNLOCKED";
+      badge.className   = "allowed-badge yes";
+      btn.disabled = false;
+      s.disabled = false; v.disabled = false; p.disabled = false;
+    } else {
+      dot.classList.add("red");
+      val.textContent = cooldownRemaining > 0 ? "COOLDOWN" : "LOCKED";
+      val.className   = "status-val red";
+      card.classList.add("active-red");
+      badge.textContent = cooldownRemaining > 0 ? "COOLING DOWN" : "LOCKED";
+      badge.className   = cooldownRemaining > 0 ? "allowed-badge wait" : "allowed-badge no";
+      btn.disabled = true;
+      s.disabled = true; v.disabled = true; p.disabled = true;
+    }
+
+    // Re-enable / disable scenario buttons too
+    updateScenarioBtnStates();
+  }
+
+  function updateScenarioBtnStates() {
+    ["force","lean","glass"].forEach(key => {
+      const btn = document.getElementById(`btn-${key}`);
+      btn.disabled = !sendAllowed || scenarioRunning;
+    });
+  }
+
+  /* ── Send Data ── */
+  async function sendSensorData() {
+    if (!sendAllowed) return;
+    const sound     = document.getElementById("inp-sound").value;
+    const vibration = document.getElementById("inp-vibration").value;
+    const pressure  = document.getElementById("inp-pressure").value;
+
+    if (sound === "" && vibration === "" && pressure === "") {
+      log("Enter at least one value before sending", "warn");
+      return;
+    }
+
+    try {
+      await fbSet(SENSORS_PATH, {
+        sound:     sound     !== "" ? Number(sound)     : null,
+        vibration: vibration !== "" ? Number(vibration) : null,
+        pressure:  pressure  !== "" ? Number(pressure)  : null
+      });
+      log(`Sent → ${SENSORS_PATH}: { sound: ${sound||"null"}, vibration: ${vibration||"null"}, pressure: ${pressure||"null"} }`, "ok");
+    } catch (e) {
+      log("Send failed: " + e.message, "err");
+    }
+  }
+
+  /* ── Scenario Runner ── */
+  async function runScenario(key) {
+    if (!sendAllowed || scenarioRunning) return;
+
+    const sc    = SCENARIOS[key];
+    const btn   = document.getElementById(`btn-${key}`);
+    const prog  = document.getElementById(`prog-${key}`);
+    const steps = sc.steps;
+    const total = steps.length;
+
+    scenarioRunning = true;
+    updateScenarioBtnStates();
+    btn.classList.add("sending");
+    btn.textContent = "SENDING...";
+    // re-attach progress bar
+    btn.appendChild(prog);
+
+    log(`▶ Scenario: ${sc.name} – starting ${total} steps`, sc.logColor);
+
+    // reset step dots
+    for (let i = 0; i < total; i++) {
+      const dot = document.getElementById(`sd-${key}-${i}`);
+      dot.className = "step-dot";
+    }
+
+    for (let i = 0; i < total; i++) {
+      const dot  = document.getElementById(`sd-${key}-${i}`);
+      const step = steps[i];
+
+      dot.classList.add("active");
+      prog.style.width = `${((i) / total) * 100}%`;
+
+      try {
+        await fbSet(SENSORS_PATH, {
+          sound:     step.sound,
+          vibration: step.vibration,
+          pressure:  step.pressure
+        });
+
+        log(`  Step ${i + 1}/${total} sent → 🔊${step.sound} 📳${step.vibration} ⬇${step.pressure}`, sc.logColor);
+
+        dot.classList.remove("active");
+        dot.classList.add("done");
+        prog.style.width = `${((i + 1) / total) * 100}%`;
+      } catch (e) {
+        log(`  Step ${i + 1} FAILED: ${e.message}`, "err");
+        dot.classList.remove("active");
+        break;
+      }
+
+      if (i < total - 1) {
+        await sleep(STEP_DELAY_MS);
+      }
+    }
+
+    log(`✓ Scenario complete: ${sc.name}`, "ok");
+
+    prog.style.width = "0%";
+    btn.classList.remove("sending");
+    btn.textContent = "▶ SIMULATE";
+    btn.appendChild(prog);
+
+    scenarioRunning = false;
+    updateScenarioBtnStates();
+
+    // Reset step dots after 2s
+    setTimeout(() => {
+      for (let i = 0; i < total; i++) {
+        document.getElementById(`sd-${key}-${i}`).className = "step-dot";
+      }
+    }, 2000);
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /* ── Log ── */
+  function log(msg, type = "default") {
+    const el  = document.getElementById("log");
+    const now = new Date();
+    const ts  = now.toTimeString().slice(0, 8);
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.innerHTML = `<span class="log-time">${ts}</span><span class="log-msg ${type}">${msg}</span>`;
+    el.prepend(entry);
+    if (el.children.length > 100) el.lastChild.remove();
+  }
+
+  function clearLog() { document.getElementById("log").innerHTML = ""; }
+
+  /* ── Boot ── */
+  log("System initializing...", "info");
+  log(`Firebase: ${FIREBASE_URL}`, "info");
+  startPolling();
+</script>
+</body>
+</html>

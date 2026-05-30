@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ESP32 Car Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c10;
+    --panel: #111318;
+    --border: #1e2230;
+    --accent: #00e5ff;
+    --accent2: #ff3d71;
+    --green: #00e676;
+    --yellow: #ffd740;
+    --muted: #4a5066;
+    --text: #c8d0e0;
+    --glow: 0 0 18px rgba(0,229,255,0.35);
+    --glow-red: 0 0 18px rgba(255,61,113,0.45);
+    --glow-green: 0 0 18px rgba(0,230,118,0.45);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    padding: 20px;
+    background-image:
+      radial-gradient(ellipse at 20% 10%, rgba(0,229,255,0.04) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 90%, rgba(255,61,113,0.04) 0%, transparent 60%);
+  }
+  h1 { font-family: 'Orbitron', monospace; font-size: 1.1rem; letter-spacing: 4px; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .header-sub { font-size: 0.68rem; color: var(--muted); letter-spacing: 2px; }
+  .firebase-config { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 18px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+  .firebase-config label { font-size: 0.65rem; color: var(--muted); letter-spacing: 1px; display: block; margin-bottom: 5px; }
+  .firebase-config input { background: #0d0f14; border: 1px solid var(--border); color: var(--accent); font-family: 'Share Tech Mono', monospace; font-size: 0.75rem; padding: 7px 10px; border-radius: 4px; outline: none; width: 220px; }
+  .firebase-config input:focus { border-color: var(--accent); }
+  .field-group { flex: 1; min-width: 200px; }
+  .btn { font-family: 'Orbitron', monospace; font-size: 0.65rem; letter-spacing: 2px; padding: 8px 18px; border-radius: 4px; border: none; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+  .btn-connect { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+  .btn-connect:hover { background: rgba(0,229,255,0.1); box-shadow: var(--glow); }
+  .btn-connect.connected { border-color: var(--green); color: var(--green); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+  @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card-title { font-size: 0.6rem; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); display: inline-block; transition: all 0.3s; }
+  .dot.active { background: var(--green); box-shadow: var(--glow-green); }
+  .dot.error { background: var(--accent2); box-shadow: var(--glow-red); }
+  .dot.warn { background: var(--yellow); }
+  .car-toggle-area { display: flex; align-items: center; gap: 24px; margin-bottom: 16px; }
+  .toggle-switch { position: relative; width: 80px; height: 38px; cursor: pointer; }
+  .toggle-switch input { display: none; }
+  .toggle-track { width: 80px; height: 38px; background: #1a1e2a; border: 1px solid var(--border); border-radius: 19px; transition: all 0.3s; position: relative; }
+  .toggle-thumb { position: absolute; top: 4px; left: 4px; width: 28px; height: 28px; border-radius: 50%; background: var(--muted); transition: all 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.5); }
+  .toggle-switch.on .toggle-track { background: rgba(0,230,118,0.12); border-color: var(--green); }
+  .toggle-switch.on .toggle-thumb { left: 46px; background: var(--green); box-shadow: var(--glow-green); }
+  .car-status-label { font-family: 'Orbitron', monospace; font-size: 1.6rem; font-weight: 900; letter-spacing: 4px; transition: all 0.3s; }
+  .car-status-label.on { color: var(--green); text-shadow: var(--glow-green); }
+  .car-status-label.off { color: var(--muted); }
+  .status-rows { font-size: 0.7rem; }
+  .status-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #161820; align-items: center; }
+  .status-row:last-child { border-bottom: none; }
+  .status-key { color: var(--muted); }
+  .status-val { font-family: 'Orbitron', monospace; font-size: 0.65rem; color: var(--accent); transition: color 0.3s; }
+  .status-val.on { color: var(--green); }
+  .status-val.off { color: var(--accent2); }
+  .status-val.warn { color: var(--yellow); }
+  .speedo-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .speedo-arc { position: relative; width: 160px; height: 90px; overflow: visible; }
+  .speed-display { text-align: center; margin-top: -8px; }
+  .speed-num { font-family: 'Orbitron', monospace; font-size: 2.8rem; font-weight: 900; color: var(--accent); line-height: 1; transition: color 0.3s; }
+  .speed-num.danger { color: var(--accent2); text-shadow: var(--glow-red); }
+  .speed-unit { font-size: 0.65rem; color: var(--muted); letter-spacing: 2px; }
+  .speed-controls { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+  .speed-btn { font-family: 'Orbitron', monospace; font-size: 1.1rem; width: 40px; height: 40px; background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 6px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+  .speed-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); box-shadow: var(--glow); }
+  .speed-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+  .speed-slider { -webkit-appearance: none; width: 140px; height: 4px; background: var(--border); border-radius: 2px; outline: none; }
+  .speed-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; box-shadow: var(--glow); }
+  .threshold-badge { font-size: 0.6rem; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); transition: all 0.3s; }
+  .threshold-badge.triggered { border-color: var(--accent2); color: var(--accent2); background: rgba(255,61,113,0.08); box-shadow: var(--glow-red); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+  .log-panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; height: 180px; overflow-y: auto; }
+  .log-entry { font-size: 0.68rem; padding: 3px 0; border-bottom: 1px solid #0f1115; display: flex; gap: 10px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; } }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-path { color: var(--accent); flex: 1; word-break: break-all; }
+  .log-val { color: var(--yellow); flex-shrink: 0; }
+  .log-entry.alert .log-path { color: var(--accent2); }
+  .log-entry.success .log-path { color: var(--green); }
+  .cooldown-bar-wrap { background: #0d0f14; border: 1px solid var(--border); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 8px; }
+  .cooldown-bar { height: 100%; background: var(--yellow); border-radius: 4px; width: 0%; transition: width 1s linear; }
+  .section-label { font-size: 0.6rem; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .cam-preview { background: #0d0f14; border: 1px solid var(--border); border-radius: 6px; height: 120px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--muted); position: relative; overflow: hidden; }
+  .cam-flash { position: absolute; inset: 0; background: white; opacity: 0; transition: opacity 0.1s; }
+  .cam-flash.snap { opacity: 0.9; }
+  .device-id-pill { font-size: 0.6rem; background: rgba(0,229,255,0.07); border: 1px solid rgba(0,229,255,0.2); color: var(--accent); padding: 2px 8px; border-radius: 20px; letter-spacing: 1px; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .cooldown-status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.62rem; padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); color: var(--muted); margin-top: 6px; transition: all 0.3s; }
+  .cooldown-status-badge.active { border-color: var(--yellow); color: var(--yellow); background: rgba(255,215,64,0.08); }
+  .cooldown-status-badge.blocked { border-color: var(--accent2); color: var(--accent2); background: rgba(255,61,113,0.08); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>⚡ ESP32 Car Simulator</h1>
+    <div class="header-sub">FIREBASE REALTIME SIMULATOR · DRIVER MONITORING SYSTEM</div>
+  </div>
+  <div class="device-id-pill" id="deviceIdDisplay">DEVICE: —</div>
+</div>
+
+<div class="firebase-config">
+  <div class="field-group">
+    <label>FIREBASE DATABASE URL</label>
+    <input id="fbUrl" type="text" value="https://car-intrusion-detection-f13de-default-rtdb.asia-southeast1.firebasedatabase.app/" />
+  </div>
+  <div class="field-group">
+    <label>DEVICE ID</label>
+    <input id="deviceId" type="text" value="esp32-car-01" />
+  </div>
+  <button class="btn btn-connect" id="connectBtn" onclick="connectFirebase()">Connect</button>
+</div>
+
+<div class="grid">
+
+  <!-- Car Control -->
+  <div class="card">
+    <div class="card-title"><span class="dot" id="carDot"></span> CAR CONTROL — ESP32DEV</div>
+    <div class="car-toggle-area">
+      <label class="toggle-switch" id="carToggle" onclick="toggleCar()">
+        <div class="toggle-track"><div class="toggle-thumb"></div></div>
+      </label>
+      <div class="car-status-label off" id="carLabel">OFF</div>
+    </div>
+    <div class="status-rows">
+      <div class="status-row">
+        <span class="status-key">/commands/esp32dev/{id}/car_status</span>
+        <span class="status-val off" id="esp32devStatus">off</span>
+      </div>
+      <div class="status-row">
+        <span class="status-key">/commands/esp32cam/{id}/click_forface</span>
+        <span class="status-val" id="clickForface">false</span>
+      </div>
+      <div class="status-row">
+        <span class="status-key">/commands/drowsiness/{id}/speed</span>
+        <span class="status-val" id="drowsySpeed">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Speed Control -->
+  <div class="card">
+    <div class="card-title"><span class="dot" id="speedDot"></span> SPEED CONTROL</div>
+    <div class="speedo-wrap">
+      <svg class="speedo-arc" viewBox="0 0 160 90">
+        <path d="M10,85 A75,75 0 0,1 150,85" fill="none" stroke="#1e2230" stroke-width="10" stroke-linecap="round"/>
+        <path id="speedArc" d="M10,85 A75,75 0 0,1 150,85" fill="none" stroke="#00e5ff" stroke-width="10"
+          stroke-linecap="round" stroke-dasharray="0 236" style="transition:all 0.4s ease;"/>
+        <line id="speedNeedle" x1="80" y1="85" x2="80" y2="20" stroke="#00e5ff"
+          stroke-width="2" stroke-linecap="round" style="transform-origin:80px 85px; transform:rotate(-90deg); transition:transform 0.4s ease;"/>
+        <circle cx="80" cy="85" r="5" fill="#00e5ff"/>
+        <circle cx="44" cy="42" r="3" fill="#ffd740" opacity="0.7"/>
+      </svg>
+      <div class="speed-display">
+        <div class="speed-num" id="speedNum">0</div>
+        <div class="speed-unit">KM / H</div>
+      </div>
+      <div class="threshold-badge" id="threshBadge">THRESHOLD: 20 KM/H</div>
+      <div class="speed-controls">
+        <button class="speed-btn" id="minusBtn" onclick="changeSpeed(-3)" disabled>−</button>
+        <input type="range" class="speed-slider" id="speedSlider" min="0" max="120" value="0" oninput="setSpeed(+this.value)" disabled>
+        <button class="speed-btn" id="plusBtn" onclick="changeSpeed(3)" disabled>+</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ESP32CAM -->
+  <div class="card">
+    <div class="card-title"><span class="dot" id="camDot"></span> ESP32CAM SIMULATION</div>
+    <div class="section-label">CAMERA PREVIEW</div>
+    <div class="cam-preview" id="camPreview">
+      <span id="camText">CAMERA OFF</span>
+      <div class="cam-flash" id="camFlash"></div>
+    </div>
+    <div style="margin-top:10px;">
+      <div class="section-label">COOLDOWN TIMER (30 SEC) — STARTS ON CAR OFF</div>
+      <div style="font-size:0.65rem;color:var(--muted);margin-bottom:4px;" id="cooldownLabel">INACTIVE</div>
+      <div class="cooldown-bar-wrap"><div class="cooldown-bar" id="cooldownBar"></div></div>
+      <div id="cooldownBadge" class="cooldown-status-badge">FACE CAPTURE: ALLOWED</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <div class="card-title"><span class="dot active"></span> FIREBASE LOG</div>
+    <div class="log-panel" id="logPanel">
+      <div class="log-entry" style="color:var(--muted);font-size:0.65rem;">Waiting for connection...</div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+let fbUrl = '';
+let deviceId = 'device_001';
+let apiKey = '';
+let connected = false;
+let carOn = false;
+let speed = 0;
+
+// Cooldown state
+// Cooldown starts when car is turned OFF.
+// If car turns ON during cooldown: stop + reset countdown to zero, no face capture sent.
+// If car turns ON after cooldown expires: trigger face capture normally.
+let cooldownActive = false;
+let cooldownEnd = 0;
+let cooldownInterval = null;
+
+async function fbSet(path, value) {
+  if (!connected) return;
+  const url = `${fbUrl}${path}.json${apiKey ? '?auth=' + apiKey : ''}`;
+  try {
+    await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(value)
+    });
+    logEntry(path, JSON.stringify(value));
+  } catch(e) {
+    logEntry(path, 'ERROR: ' + e.message, 'alert');
+  }
+}
+window.connectFirebase = async function() {
+  fbUrl = document.getElementById('fbUrl').value.trim().replace(/\/$/, '');
+  deviceId = document.getElementById('deviceId').value.trim() || 'device_001';
+  if (!fbUrl) { alert('Enter Firebase URL'); return; }
+  const btn = document.getElementById('connectBtn');
+  btn.textContent = 'Testing...';
+  try {
+    const res = await fetch(`${fbUrl}/.json`);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    connected = true;
+    btn.textContent = 'Connected ✓';
+    btn.classList.add('connected');
+    document.getElementById('deviceIdDisplay').textContent = 'DEVICE: ' + deviceId.toUpperCase();
+    logEntry('/[root]', 'Connected to Firebase', 'success');
+    await fbSet(`/commands/esp32dev/${deviceId}/car_status`, 'off');
+    await fbSet(`/commands/esp32cam/${deviceId}/click_forface`, false);
+    await fbSet(`/commands/drowsiness/${deviceId}/speed`, 0);
+  } catch(e) {
+    btn.textContent = 'Failed — Retry';
+    logEntry('/[connect]', 'ERROR: ' + e.message, 'alert');
+  }
+}
+
+window.toggleCar = async function() {
+  carOn = !carOn;
+  updateCarUI();
+
+  if (carOn) {
+    // ── CAR TURNED ON ──────────────────────────────────────────────
+    await fbSet(`/commands/esp32dev/${deviceId}/car_status`, 'on');
+    enableSpeedControls(true);
+
+    if (cooldownActive) {
+      // Stop countdown and reset fully — no face capture sent
+      if (cooldownInterval) {
+        clearInterval(cooldownInterval);
+        cooldownInterval = null;
+      }
+      cooldownActive = false;
+      cooldownEnd = 0;
+
+      // Reset cooldown UI to idle
+      document.getElementById('cooldownBar').style.width = '0%';
+      document.getElementById('cooldownLabel').textContent = 'INACTIVE';
+      document.getElementById('cooldownBadge').className = 'cooldown-status-badge';
+      document.getElementById('cooldownBadge').textContent = 'FACE CAPTURE: ALLOWED';
+
+      logEntry('/[cooldown]', 'Cooldown cancelled — car on, no face capture sent', 'alert');
+      // No triggerFaceCapture() — this is the key difference from the old behavior
+
+    } else {
+      // No active cooldown — fire face capture immediately
+      await triggerFaceCapture();
+    }
+
+  } else {
+    // ── CAR TURNED OFF ─────────────────────────────────────────────
+    speed = 0;
+    updateSpeedUI(0);
+    enableSpeedControls(false);
+
+    await fbSet(`/commands/esp32dev/${deviceId}/car_status`, 'off');
+    await fbSet(`/commands/esp32cam/${deviceId}/click_forface`, false);
+    await fbSet(`/commands/drowsiness/${deviceId}/speed`, 0);
+
+    document.getElementById('camText').textContent = 'CAMERA OFF';
+    document.getElementById('camDot').className = 'dot';
+    document.getElementById('clickForface').textContent = 'false';
+    document.getElementById('clickForface').className = 'status-val';
+    document.getElementById('drowsySpeed').textContent = '—';
+
+    // Start 5-min cooldown on car OFF
+    startCooldown();
+  }
+}
+
+async function triggerFaceCapture() {
+  await fbSet(`/commands/esp32cam/${deviceId}/click_forface`, true);
+  document.getElementById('clickForface').textContent = 'true';
+  document.getElementById('clickForface').className = 'status-val on';
+  simulateCameraSnap();
+}
+
+function simulateCameraSnap() {
+  const flash = document.getElementById('camFlash');
+  const camText = document.getElementById('camText');
+  const camDot = document.getElementById('camDot');
+  camText.textContent = '📸 CAPTURING...';
+  camDot.className = 'dot warn';
+  flash.classList.add('snap');
+  setTimeout(() => {
+    flash.classList.remove('snap');
+    camText.textContent = '✓ IMAGE SENT TO FIREBASE';
+    camDot.className = 'dot active';
+    logEntry(`/images/${deviceId}/face`, 'face_capture_' + Date.now() + '.jpg', 'success');
+  }, 200);
+}
+
+function startCooldown() {
+  // Clear any existing cooldown first
+  if (cooldownInterval) { clearInterval(cooldownInterval); cooldownInterval = null; }
+
+  cooldownActive = true;
+  cooldownEnd = Date.now() + 30 * 1000;
+  logEntry('/[cooldown]', 'Cooldown started — face capture blocked for 30 sec', 'alert');
+
+  document.getElementById('cooldownBadge').className = 'cooldown-status-badge active';
+  document.getElementById('cooldownBadge').textContent = 'FACE CAPTURE: BLOCKED (30 sec cooldown)';
+
+  cooldownInterval = setInterval(() => {
+    const remaining = cooldownEnd - Date.now();
+    if (remaining <= 0) {
+      clearInterval(cooldownInterval);
+      cooldownInterval = null;
+      cooldownActive = false;
+      document.getElementById('cooldownBar').style.width = '0%';
+      document.getElementById('cooldownLabel').textContent = 'INACTIVE';
+      document.getElementById('cooldownBadge').className = 'cooldown-status-badge';
+      document.getElementById('cooldownBadge').textContent = 'FACE CAPTURE: ALLOWED';
+      logEntry('/[cooldown]', 'Cooldown ended — face capture allowed', 'success');
+      return;
+    }
+    const pct = (remaining / (30 * 1000)) * 100;
+    document.getElementById('cooldownBar').style.width = pct + '%';
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    document.getElementById('cooldownLabel').textContent =
+      `ACTIVE — ${mins}:${secs.toString().padStart(2, '0')} remaining`;
+  }, 1000);
+}
+
+window.changeSpeed = function(delta) {
+  setSpeed(Math.max(0, Math.min(120, speed + delta)));
+}
+
+window.setSpeed = async function(val) {
+  speed = val;
+  document.getElementById('speedSlider').value = val;
+  updateSpeedUI(val);
+
+  if (carOn && connected) {
+    await fbSet(`/commands/drowsiness/${deviceId}/speed`, speed);
+    document.getElementById('drowsySpeed').textContent = speed;
+  }
+}
+
+function updateSpeedUI(val) {
+  document.getElementById('speedNum').textContent = val;
+  document.getElementById('speedNum').className = val > 20 ? 'speed-num danger' : 'speed-num';
+  const maxDash = 236;
+  const ratio = val / 120;
+  document.getElementById('speedArc').setAttribute('stroke-dasharray', `${ratio * maxDash} ${maxDash}`);
+  document.getElementById('speedArc').setAttribute('stroke', val > 20 ? '#ff3d71' : '#00e5ff');
+  const deg = -90 + ratio * 180;
+  document.getElementById('speedNeedle').style.transform = `rotate(${deg}deg)`;
+  const badge = document.getElementById('threshBadge');
+  if (val > 20) {
+    badge.className = 'threshold-badge triggered';
+    badge.textContent = '⚠ SPEED > 20 KM/H';
+    document.getElementById('speedDot').className = 'dot error';
+  } else {
+    badge.className = 'threshold-badge';
+    badge.textContent = 'THRESHOLD: 20 KM/H';
+    document.getElementById('speedDot').className = carOn ? 'dot active' : 'dot';
+  }
+}
+
+function enableSpeedControls(on) {
+  document.getElementById('speedSlider').disabled = !on;
+  document.getElementById('plusBtn').disabled = !on;
+  document.getElementById('minusBtn').disabled = !on;
+}
+
+function updateCarUI() {
+  const toggle = document.getElementById('carToggle');
+  const label = document.getElementById('carLabel');
+  const carDot = document.getElementById('carDot');
+  const esp32devStatus = document.getElementById('esp32devStatus');
+  toggle.className = 'toggle-switch' + (carOn ? ' on' : '');
+  label.className = 'car-status-label ' + (carOn ? 'on' : 'off');
+  label.textContent = carOn ? 'ON' : 'OFF';
+  carDot.className = 'dot ' + (carOn ? 'active' : '');
+  esp32devStatus.textContent = carOn ? 'on' : 'off';
+  esp32devStatus.className = 'status-val ' + (carOn ? 'on' : 'off');
+
+  if (!carOn) {
+    document.getElementById('speedNum').textContent = '0';
+    document.getElementById('speedNum').className = 'speed-num';
+    document.getElementById('speedArc').setAttribute('stroke-dasharray', '0 236');
+    document.getElementById('speedNeedle').style.transform = 'rotate(-90deg)';
+    document.getElementById('speedDot').className = 'dot';
+    document.getElementById('threshBadge').className = 'threshold-badge';
+    document.getElementById('threshBadge').textContent = 'THRESHOLD: 20 KM/H';
+    document.getElementById('speedSlider').value = 0;
+    speed = 0;
+  }
+}
+
+function logEntry(path, val, type = '') {
+  const panel = document.getElementById('logPanel');
+  const now = new Date();
+  const time = now.toTimeString().slice(0, 8);
+  const el = document.createElement('div');
+  el.className = 'log-entry ' + type;
+  el.innerHTML = `<span class="log-time">${time}</span><span class="log-path">${path}</span><span class="log-val">${val}</span>`;
+  panel.insertBefore(el, panel.firstChild);
+  if (panel.children.length > 60) panel.removeChild(panel.lastChild);
+}
+</script>
+</body>
+</html>

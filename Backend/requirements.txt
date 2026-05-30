@@ -1,0 +1,7 @@
+face_recognition
+fastapi
+uvicorn[standard]
+pillow
+numpy
+python-multipart
+firebase-admin

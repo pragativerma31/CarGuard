@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+.env
+*.jpg
+*.png
+*.jpeg
+firebase_key.json
+known_faces/
+known_faces/*.jpg
+known_faces/*.jpeg
+known_faces/*.png
